@@ -1,20 +1,3 @@
-########### 
-# paper, authors, year, modified last, 
-# description
-
-
-
-
-# required R packages
-require(deSolve)  # version 1.40
-require(MASS)     # version 7.3-60.2
-require(survival) # version
-require(furrr)    # version
-require(dplyr)
-require(ggplot2)
-require(tidyr)
-require(cowplot)
-
 ## SEIR model ------------------------------------------------------------------
 # Kermack-McKendrick SEIR epidemic ordinary differential equations
 KMode <- function(t, state, parameters) {

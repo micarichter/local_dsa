@@ -13,6 +13,8 @@ require(dplyr)    # version 1.1.4
 require(tidyr)    # version 1.3.1
 require(ggplot2)  # version 3.5.1
 require(parallel) # version 4.4.1
+require(furrr)    # version 0.3.1
+require(cowplot)  # version 1.2.0
 
 set.seed(918) # fixed seed for reproducibility
 source("localDSA_functions.R") # back end functions
