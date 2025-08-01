@@ -1277,3 +1277,110 @@ DSA_window <- function(epidemic) {
   
   list(plot_grid(p1, p2, p3, p4) ,plot_grid(s1, s2, s3, s4))
 }
+
+# end <- 60
+# width <- 5
+# iter <- 500
+# tstarts <- c(5, 15, 25, 35)
+# ntstarts <- length(tstarts)
+# preds_S <- array(dim = c(6, ntstarts, iter))
+# preds_I <- array(dim = c(6, ntstarts, iter))
+# bias_S <- array(dim = c(6, ntstarts, iter))
+# 
+# ptimes <- data.frame(c(15, 25, 30, 40, 50, 60), c(25, 25, 30, 40, 50, 60),
+#                      c(35, 35, 35, 40, 50, 60), c(45, 45, 45, 45, 50, 60))
+# colnames(ptimes) <- c("five", "fifteen", "twentyfive", "thirtyfive")
+
+# function to make predictions (note: executing this at 500 iterations takes days)
+window_predict2 <- function(i) {
+  hsdat_i <- HSdat(5000, epidemic, tstart = 0, tstop = 100)
+  
+  res_S <- array(dim = c(6, ntstarts))
+  res_I <- array(dim = c(6, ntstarts))
+  lwrS <- array(dim = c(6, ntstarts))
+  uprS <- array(dim = c(6, ntstarts))
+  lwrI <- array(dim = c(6, ntstarts))
+  uprI <- array(dim = c(6, ntstarts))
+  
+  Sval <- array(dim = c(6, ntstarts))
+  Ival <- array(dim = c(6, ntstarts))
+  
+  empS <- array(dim = c(6, ntstarts))
+  empI <- array(dim = c(6, ntstarts))
+  bias <- array(dim = c(6, ntstarts))
+  
+  for (j in 1:ntstarts) {
+    tstart <- tstarts[j]
+    pred_times <- ptimes[, j]
+    
+    try({
+      # generate human sensors data
+      hsdat <- HSsubset(hsdat_i, tstart = tstart, tstop = tstart + width)
+      
+      # get MLEs
+      DSAest <- DSAmle(hsdat, method = "L-BFGS-B")
+      
+      # make predictions
+      mlesamp <- DSApred_mlesamp(DSAest)
+      times_pred <- seq(tstart, end, by = 0.1)
+      DSApred_mle <- DSApredict(DSAest$point$point, times_pred, mlesamp)
+      
+      # extract bounds and estimates at each time
+      lwrS[, j] <- DSApred_mle$lowerS[match(pred_times, DSApred_mle$time)]
+      uprS[, j] <- DSApred_mle$upperS[match(pred_times, DSApred_mle$time)]
+      Sval[, j] <- DSApred_mle$S[match(pred_times, DSApred_mle$time)]
+      
+      lwrI[, j] <- DSApred_mle$lowerI[match(pred_times, DSApred_mle$time)]
+      uprI[, j] <- DSApred_mle$upperS[match(pred_times, DSApred_mle$time)]
+      Ival[, j] <- DSApred_mle$I[match(pred_times, DSApred_mle$time)]
+    })
+    
+    # get empirical data at time points
+    empS[, j] <- epidemic$S[match(pred_times, epidemic$time)]
+    empI[, j] <- epidemic$S[match(pred_times, epidemic$time)]
+    
+    # test if the empirical is within the bounds  
+    res_S[, j] <- empS[, j] >= lwrS[, j] & empS[, j] <= uprS[, j]
+    res_I[, j] <- empI[, j] >= lwrI[, j] & empI[, j] <= uprI[, j]
+    
+    # calculate bias
+    bias[, j] <- abs(empS[, j] - Sval[, j])
+  }
+  return(list(res_S = res_S, res_I = res_I, bias = bias))
+}
+
+# parallelize computation using parLapply
+# n.cores <- detectCores() 
+# 
+# system.time({
+#   clust <- makeCluster(n.cores) 
+#   clusterEvalQ(clust, source("localDSA_functions.R"))
+#   clusterExport(clust, list("epidemic", "tstarts", "ntstarts", "width", "preds_S", 
+#                             "ptimes","preds_I", "end", "iter", "bias_S"))
+#   result <- pblapply(1:iter, window_predict2)
+#   stopCluster(clust)
+# })
+#
+# put the results in an array
+# for (i in 1:iter) {
+#   preds_S[,,i] <- result[[i]]$res_S
+#   preds_I[,,i] <- result[[i]]$res_I
+#   bias_S[,,i] <- result[[i]]$bias
+#   
+# }
+# 
+# rownames(preds_S) <- c("time1", "time2", "time3", "time4", "time5", "time6")
+# rownames(preds_I) <- c("time1", "time2", "time3", "time4", "time5", "time6")
+# 
+# colnames(preds_S) <- c("tstart5", "tstart15", "tstart25", "tstart35")
+# colnames(preds_I) <- c("tstart5", "tstart15", "tstart25", "tstart35")
+# 
+# S_true <- apply(preds_S, c(1,2), mean)
+# I_true <- apply(preds_I, c(1,2), mean)
+# 
+# S_true <- as.data.frame(as.table(S_true))
+# I_true <- as.data.frame(as.table(I_true))
+# colnames(S_true) <- colnames(I_true) <- c("Prediction time", "tstart", 
+#                                           "Coverage Probability")
+# write.csv(S_true, "s_covs.csv")
+# write.csv(I_true, "i_covs.csv")
