@@ -1,0 +1,25 @@
+"","Prediction time","tstart","Coverage Probability"
+"1","time1","tstart5",0.964
+"2","time2","tstart5",0.97
+"3","time3","tstart5",0.972
+"4","time4","tstart5",0.974
+"5","time5","tstart5",0.978
+"6","time6","tstart5",0.978
+"7","time1","tstart15",0.978
+"8","time2","tstart15",0.978
+"9","time3","tstart15",0.982
+"10","time4","tstart15",0.978
+"11","time5","tstart15",0.978
+"12","time6","tstart15",0.976
+"13","time1","tstart25",0.98
+"14","time2","tstart25",0.98
+"15","time3","tstart25",0.98
+"16","time4","tstart25",0.966
+"17","time5","tstart25",0.968
+"18","time6","tstart25",0.968
+"19","time1","tstart35",0.976
+"20","time2","tstart35",0.976
+"21","time3","tstart35",0.976
+"22","time4","tstart35",0.976
+"23","time5","tstart35",0.978
+"24","time6","tstart35",0.974
