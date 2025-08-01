@@ -2,7 +2,7 @@
 # Local dynamical survival analysis and epidemic surveillance panels for 
 # epidemic tracking and forecasting 
 # by Micaela Richter, Eben Kenah, Prescott C. Alexander, and Grzegorz Rempala.
-# last modified: July 29, 2025
+# last modified: July 31, 2025
 # This code generates all figures in the manuscript
 
 ## Required R packages
@@ -18,6 +18,8 @@ require(cowplot)  # version 1.2.0
 
 set.seed(918) # fixed seed for reproducibility
 source("localDSA_functions.R") # back end functions
+S_true <- read.csv("s_covs.csv") # read in coverage probability data
+I_true <- read.csv("i_covs.csv") # read in coverage probability data
 
 
 ## Generate synthetic data
@@ -28,7 +30,8 @@ epidemic <- SEIRepidemic(
 ## Read in EpiCast data from Ohio
 epidat <- read.csv("ohio_all.csv")
 
-## Figure 3 (parameter point estimates (a) and standard errors (b) as the 5-day
+## Figure 3 --------------------------------------------------------------------
+# (parameter point estimates (a) and standard errors (b) as the 5-day
 # window slides across the epidemic)
 
 res <- DSA_window(epidemic)
@@ -37,7 +40,8 @@ res[[1]]
 # B (parameter standard errors)
 res[[2]]
 
-## Figure 4 (predictions based on a 5 day window using simulated data)
+## Figure 4 --------------------------------------------------------------------
+# (predictions based on a 5 day window using simulated data)
 fit_synth <- function(n, epidemic, tstart, tstop) {
   
   hsdat <- HSdat(n, epidemic, tstart, tstop)
@@ -60,114 +64,8 @@ fit_synth <- function(n, epidemic, tstart, tstop) {
 
 fit_synth(5000, epidemic, 10, 15)
 
-## Table 2 (coverage probabilities for predicted S and I curves)
-end <- 60
-width <- 5
-iter <- 500
-tstarts <- c(5, 15, 25, 35)
-ntstarts <- length(tstarts)
-preds_S <- array(dim = c(6, ntstarts, iter))
-preds_I <- array(dim = c(6, ntstarts, iter))
-bias_S <- array(dim = c(6, ntstarts, iter))
-
-ptimes <- data.frame(c(15, 25, 30, 40, 50, 60), c(25, 25, 30, 40, 50, 60),
-                     c(35, 35, 35, 40, 50, 60), c(45, 45, 45, 45, 50, 60))
-colnames(ptimes) <- c("five", "fifteen", "twentyfive", "thirtyfive")
-
-# function to make predictions
-window_predict2 <- function(i) {
-  hsdat_i <- HSdat(5000, epidemic, tstart = 0, tstop = 100)
-  
-  res_S <- array(dim = c(6, ntstarts))
-  res_I <- array(dim = c(6, ntstarts))
-  lwrS <- array(dim = c(6, ntstarts))
-  uprS <- array(dim = c(6, ntstarts))
-  lwrI <- array(dim = c(6, ntstarts))
-  uprI <- array(dim = c(6, ntstarts))
-  
-  Sval <- array(dim = c(6, ntstarts))
-  Ival <- array(dim = c(6, ntstarts))
-  
-  empS <- array(dim = c(6, ntstarts))
-  empI <- array(dim = c(6, ntstarts))
-  bias <- array(dim = c(6, ntstarts))
-  
-  for (j in 1:ntstarts) {
-    tstart <- tstarts[j]
-    pred_times <- ptimes[, j]
-    
-    try({
-      # generate human sensors data
-      hsdat <- HSsubset(hsdat_i, tstart = tstart, tstop = tstart + width)
-      
-      # get MLEs
-      DSAest <- DSAmle(hsdat, method = "L-BFGS-B")
-      
-      # make predictions
-      mlesamp <- DSApred_mlesamp(DSAest)
-      times_pred <- seq(tstart, end, by = 0.1)
-      DSApred_mle <- DSApredict(DSAest$point$point, times_pred, mlesamp)
-      
-      # extract bounds and estimates at each time
-      lwrS[, j] <- DSApred_mle$lowerS[match(pred_times, DSApred_mle$time)]
-      uprS[, j] <- DSApred_mle$upperS[match(pred_times, DSApred_mle$time)]
-      Sval[, j] <- DSApred_mle$S[match(pred_times, DSApred_mle$time)]
-      
-      lwrI[, j] <- DSApred_mle$lowerI[match(pred_times, DSApred_mle$time)]
-      uprI[, j] <- DSApred_mle$upperS[match(pred_times, DSApred_mle$time)]
-      Ival[, j] <- DSApred_mle$I[match(pred_times, DSApred_mle$time)]
-    })
-    
-    # get empirical data at time points
-    empS[, j] <- epidemic$S[match(pred_times, epidemic$time)]
-    empI[, j] <- epidemic$S[match(pred_times, epidemic$time)]
-    
-    # test if the empirical is within the bounds  
-    res_S[, j] <- empS[, j] >= lwrS[, j] & empS[, j] <= uprS[, j]
-    res_I[, j] <- empI[, j] >= lwrI[, j] & empI[, j] <= uprI[, j]
-    
-    # calculate bias
-    bias[, j] <- abs(empS[, j] - Sval[, j])
-  }
-  return(list(res_S = res_S, res_I = res_I, bias = bias))
-}
-
-# parallelize computation using parLapply
-n.cores <- detectCores() 
-
-system.time({
-  clust <- makeCluster(n.cores) 
-  clusterEvalQ(clust, source("localDSA_functions.R"))
-  clusterExport(clust, list("epidemic", "tstarts", "ntstarts", "width", "preds_S", 
-                            "ptimes","preds_I", "end", "iter", "bias_S"))
-  result <- parLapply(clust, 1:iter, window_predict2)
-  stopCluster(clust)
-})
-
-# put the results in an array
-for (i in 1:iter) {
-  preds_S[,,i] <- result[[i]]$res_S
-  preds_I[,,i] <- result[[i]]$res_I
-  bias_S[,,i] <- result[[i]]$bias
-  
-}
-
-rownames(preds_S) <- c("time1", "time2", "time3", "time4", "time5", "time6")
-rownames(preds_I) <- c("time1", "time2", "time3", "time4", "time5", "time6")
-
-colnames(preds_S) <- c("tstart5", "tstart15", "tstart25", "tstart35")
-colnames(preds_I) <- c("tstart5", "tstart15", "tstart25", "tstart35")
-
-S_true <- apply(preds_S, c(1,2), mean)
-I_true <- apply(preds_I, c(1,2), mean)
-
-S_true <- as.data.frame(as.table(S_true))
-I_true <- as.data.frame(as.table(I_true))
-colnames(S_true) <- colnames(I_true) <- c("Prediction time", "tstart", 
-                                          "Coverage Probability")
-write.csv(S_true, "s_covs.csv")
-wrive.csv(I_true, "i_covs.csv")
-
+## Table 2 ---------------------------------------------------------------------
+# (coverage probabilities for predicted S and I curves)
 S_true$type <- "S"
 I_true$type <- "I"
 
@@ -180,6 +78,7 @@ cov_tab1 <- cov_tab %>%
          coverage_S = round(S, 3),
          coverage_I = round(I, 3)) %>%
   select(t_start, pred_time, coverage_S, coverage_I) %>%
+  distinct(t_start, pred_time, .keep_all = TRUE) %>%
   arrange(t_start, pred_time)
 
 ft <- flextable(cov_tab1)
@@ -188,20 +87,22 @@ ft <- set_header_labels(ft, t_start = "tstart", pred_time = "Prediction time",
                         coverage_I = "Coverage probability I")
 
 ft <- colformat_num(ft, j = c("coverage_S", "coverage_I"), digits = 3)
-ft <- autofit(ft)
 ft <- merge_v(ft, j = "t_start")
 ft <- align(ft, j = c("t_start", "pred_time"), align = "center", part = "all")
-ft <- hline(ft, i = c("6", "12", "18"))
+ft <- autofit(ft)
+ft <- hline(ft, i = c("6", "11", "15"))
 ft
 
-## Figure 5 (changing parameter estimates in EpiCast data over a sliding window)
+## Figure 5 --------------------------------------------------------------------
+# (changing parameter estimates in EpiCast data over a sliding window)
 res_epicast <- EPI_window(epidat)
 # A (parameter point estimates)
 res_epicast[[1]]
 # B (parameter standard errors)
 res_epicast[[2]]
 
-## Figure 6 (empirical EpiCast data vs fitted observations in 5 day windows)
+## Figure 6 --------------------------------------------------------------------
+# (empirical EpiCast data vs fitted observations in 5 day windows)
 width <- 14
 tstarts <- seq(40, 199, by = width)
 ntstarts <- length(tstarts)
@@ -361,7 +262,8 @@ ggplot() +
     axis.title = element_text(size = 14)
   )
 
-## Figure 7 (empirical EpiCast data vs predictions in 5 day windows)
+## Figure 7 --------------------------------------------------------------------
+# (empirical EpiCast data vs predictions in 5 day windows)
 ggplot() +
   geom_line(data = emp_combined, aes(x = time, y = empirical, color = type), 
             linewidth = 0.5) +
@@ -383,7 +285,8 @@ ggplot() +
     axis.title = element_text(size = 14)
   )
 
-## Figure 8 (LRT using predictions at 1 week)
+## Figure 8 --------------------------------------------------------------------
+# (LRT using predictions at 1 week)
 lrt_fun <- function() {
   width <- 14
   tstarts <- seq(40, 199, by = width)
@@ -523,5 +426,6 @@ plot_LR2 <- function() {
 
 plot_LR1()
 
-## Figure 9 (LRT using predictions at 2 weeks)
+## Figure 9 --------------------------------------------------------------------
+# (LRT using predictions at 2 weeks)
 plot_LR2()
